@@ -2,8 +2,13 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"time"
 
+	"github.com/faiface/beep"
+	"github.com/faiface/beep/mp3"
+	"github.com/faiface/beep/speaker"
 	"github.com/getlantern/systray"
 )
 
@@ -11,16 +16,39 @@ func main() {
 	systray.Run(onReady, onExit)
 }
 
+func playGong(times int) {
+	f, err := os.Open("./audio/gong.mp3")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	streamer, format, err := mp3.Decode(f)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer streamer.Close()
+	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+	done := make(chan bool)
+
+	for i := 0; i < times; i++ {
+		speaker.Play(beep.Seq(streamer, beep.Callback(func() {
+			done <- true
+		})))
+		<-done
+		streamer.Seek(0)
+	}
+}
+
 func onReady() {
 	systray.SetTitle("Ting Tong")
 	systray.SetTooltip("Go Ting Tong")
 	mTimeLabel := systray.AddMenuItem("0 mins", "0 mins")
 	systray.AddSeparator()
-	mFiveMin := systray.AddMenuItem("Take a 5 minutes break", "Come on, life's short")
+	mBreak := systray.AddMenuItem("Start break timer", "Come on, life's short")
 	mQuitOrig := systray.AddMenuItem("Quit", "Quit the whole app")
 
 	counter := newCounter()
-	go counter.start(1 * time.Second)
+	go counter.start(1 * time.Minute)
 
 	state := "working"
 
@@ -31,9 +59,7 @@ func onReady() {
 				title := fmt.Sprintf("Working for %d mins", count)
 				mTimeLabel.SetTitle(title)
 				if (count % 60) == 0 {
-					for i := 0; i < (count / 60); i++ {
-						fmt.Println("TAKE A BREAK!")
-					}
+					go playGong(count / 60)
 				}
 			} else if state == "resting" {
 				title := fmt.Sprintf("Resting for %d mins", count)
@@ -43,7 +69,7 @@ func onReady() {
 			mTimeLabel.SetTitle("Working for 0 mins")
 			state = "working"
 			counter.reset <- true
-		case <-mFiveMin.ClickedCh:
+		case <-mBreak.ClickedCh:
 			mTimeLabel.SetTitle("Resting for 0 mins")
 			state = "resting"
 			counter.reset <- true
