@@ -11,61 +11,47 @@ func main() {
 	systray.Run(onReady, onExit)
 }
 
-func timer() (countChan <-chan int, resetChan chan<- bool, doneChan chan<- bool) {
-	count := 0
-	c := make(chan int)
-	reset := make(chan bool)
-	done := make(chan bool)
-	ticker := time.NewTicker(1 * time.Minute)
-	go func() {
-		for {
-			select {
-			case <-done:
-				ticker.Stop()
-			case <-ticker.C:
-				count++
-				c <- count
-			case <-reset:
-				count = 0
-			}
-		}
-	}()
-	return c, reset, done
-}
-
 func onReady() {
 	systray.SetTitle("Ting Tong")
 	systray.SetTooltip("Go Ting Tong")
 	mTimeLabel := systray.AddMenuItem("0 mins", "0 mins")
 	systray.AddSeparator()
-	mFiveMin := systray.AddMenuItem("5 Minutes", "Take a break for 5 minutes")
+	mFiveMin := systray.AddMenuItem("Take a 5 minutes break", "Come on, life's short")
 	mQuitOrig := systray.AddMenuItem("Quit", "Quit the whole app")
 
-	countChan, resetCountChan, doneChan := timer()
+	counter := newCounter()
+	go counter.start(1 * time.Second)
 
-	go func() {
-		<-mQuitOrig.ClickedCh
-		fmt.Println("Requesting quit")
-		doneChan <- true
-		systray.Quit()
-		fmt.Println("Finished quiting")
-	}()
+	state := "working"
 
-	go func() {
-		for {
-			select {
-			case count := <-countChan:
-				label := fmt.Sprintf("%v mins", count)
-				mTimeLabel.SetTitle(label)
-				if count > 60 {
-					fmt.Println("Time for a break")
+	for {
+		select {
+		case count := <-counter.count:
+			if state == "working" {
+				title := fmt.Sprintf("Working for %d mins", count)
+				mTimeLabel.SetTitle(title)
+				if (count % 60) == 0 {
+					for i := 0; i < (count / 60); i++ {
+						fmt.Println("TAKE A BREAK!")
+					}
 				}
-			case <-mFiveMin.ClickedCh:
-				mTimeLabel.SetTitle("0 mins")
-				resetCountChan <- true
+			} else if state == "resting" {
+				title := fmt.Sprintf("Resting for %d mins", count)
+				mTimeLabel.SetTitle(title)
 			}
+		case <-mTimeLabel.ClickedCh:
+			mTimeLabel.SetTitle("Working for 0 mins")
+			state = "working"
+			counter.reset <- true
+		case <-mFiveMin.ClickedCh:
+			mTimeLabel.SetTitle("Resting for 0 mins")
+			state = "resting"
+			counter.reset <- true
+		case <-mQuitOrig.ClickedCh:
+			counter.done <- true
+			systray.Quit()
 		}
-	}()
+	}
 }
 
 func onExit() {
