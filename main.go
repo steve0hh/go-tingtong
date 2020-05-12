@@ -3,13 +3,13 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/faiface/beep"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
 	"github.com/getlantern/systray"
+	"github.com/markbates/pkger"
 )
 
 func main() {
@@ -17,7 +17,7 @@ func main() {
 }
 
 func playGong(times int) {
-	f, err := os.Open("./audio/gong.mp3")
+	f, err := pkger.Open("/audio/gong.mp3")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -27,9 +27,8 @@ func playGong(times int) {
 		log.Fatal(err)
 	}
 	defer streamer.Close()
-	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
 	done := make(chan bool)
-
+	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
 	for i := 0; i < times; i++ {
 		speaker.Play(beep.Seq(streamer, beep.Callback(func() {
 			done <- true

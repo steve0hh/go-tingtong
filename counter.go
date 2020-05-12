@@ -18,7 +18,7 @@ func newCounter() *Counter {
 
 func (c *Counter) start(d time.Duration) {
 	count := 0
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(d)
 	for {
 		select {
 		case <-ticker.C:
@@ -26,8 +26,6 @@ func (c *Counter) start(d time.Duration) {
 			c.count <- count
 		case <-c.reset:
 			count = 0
-			ticker.Stop()
-			ticker = time.NewTicker(d)
 		case <-c.done:
 			ticker.Stop()
 		}
